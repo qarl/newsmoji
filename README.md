@@ -1,12 +1,30 @@
 # newsmoji
 
 The single hottest news story, retold **entirely in emoji**, laid out like a
-newspaper front page.
+newspaper front page. The future of being informed.
 
 <p align="center">
   <img src="screenshot.png" width="420"
        alt="newsmoji - an all-emoji newspaper front page, rendered in monochrome">
 </p>
+
+## Why
+
+Let's be adults about this: nobody reads anymore. You skimmed a headline,
+glanced at the thumbnail, and felt informed. That instinct is correct -
+newsmoji simply finishes the thought.
+
+Emoji is the first genuinely universal language: every device on Earth
+ships the same glyphs, no translation required, none of the usual trouble
+with *grammar*. Humanity spent five thousand years migrating away from
+hieroglyphics, and with the benefit of hindsight the Egyptians were simply
+early. newsmoji closes the loop and returns the news to pictures, where it
+belongs.
+
+Consider it a head start. When the official Duolingo emoji course finally
+ships there will be a stampede - so get fluent now, while reading 📰🌍🔥 is
+still a rare and marketable skill, and you'll be the only person in the
+meeting who knows what is going on in the world.
 
 ## What it does
 
@@ -16,18 +34,19 @@ newspaper front page.
 2. **Picks** - Anthropic call #1 (Claude Sonnet) chooses the single hottest
    story, skipping ones it covered in the last few editions, and renders the
    headline as a short emoji glyph.
-3. **Reads** the chosen story's full article body from the outlet's page
-   (JSON-LD `articleBody`, with a `<p>`-scraping fallback).
+3. **Reads** the chosen story's full article body, so that you do not have to.
 4. **Translates** - Anthropic call #2 (Claude Sonnet) retells the whole story
-   as a tight emoji narrative (a hard 70-140 emoji).
-5. **Renders** a single self-contained `index.html`: a portrait-broadsheet
+   as a tight emoji narrative: a hard 70-140 emoji, the modern attention
+   span, generously rounded up.
+5. **Renders** a self-contained `index.html`: a portrait-broadsheet
    newspaper - emoji masthead, lead emoji, the emoji story in newsprint
-   columns - auto-sized to fit the screen with no scrolling, and set to
-   reload itself every 10 minutes. The page is 100% emoji - not one word of
-   text anywhere - rendered black-on-newsprint in a monochrome emoji font.
+   columns - auto-sized to fit the screen with no scrolling (scrolling is a
+   form of reading), and set to reload itself every 10 minutes. The page is
+   100% emoji: not one word of text anywhere, rendered black-on-newsprint in
+   a tasteful monochrome emoji font.
 
 Run it on a schedule (say a `*/10` cron) and you have a news page that keeps
-refreshing itself with the latest story.
+itself current, indefinitely, with no further need for words.
 
 ## Running it
 
@@ -60,7 +79,8 @@ monochrome look - serve that file alongside `index.html`.
 
 The page never breaks. On any failure - a feed down, an API call failing, a
 bad render - the cycle aborts and the last good `index.html` is left
-untouched. Worst case the page is a little stale, never broken or blank.
+untouched. Worst case the page is a little stale, never broken or blank. The
+public must be informed.
 
 ## Configuration
 
@@ -71,7 +91,8 @@ untouched. Worst case the page is a little stale, never broken or blank.
 
 ## License
 
-GPLv3 - see [`LICENSE`](LICENSE).
+GPLv3 - see [`LICENSE`](LICENSE). Free as in speech, itself a legacy text
+format.
 
 The bundled `NotoEmoji-mono.woff` is Google's **Noto Emoji**, used under the
 SIL Open Font License 1.1.
