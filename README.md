@@ -3,9 +3,10 @@
 The single hottest news story, retold **entirely in emoji**, laid out like a
 newspaper front page.
 
-```
-                     🌍🔥📰  ->  the news, but make it emoji
-```
+<p align="center">
+  <img src="screenshot.png" width="420"
+       alt="newsmoji - an all-emoji newspaper front page, rendered in monochrome">
+</p>
 
 ## What it does
 
