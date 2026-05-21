@@ -501,10 +501,14 @@ SYSTEM_NARRATE = (
 
 
 def _anthropic(system, user_msg, api_key, max_tokens):
-    """One Anthropic messages call with JSON prefill -> parsed dict.
+    """One Anthropic messages call -> parsed JSON dict.
 
-    Raises on transport/HTTP errors and on unparseable output; callers
-    treat any exception as "abort the cycle, keep the last good page".
+    The system prompt tells the model to reply with JSON only; the reply
+    is then sliced from its first '{' to its last '}', so a stray code
+    fence or note can't break parsing. (An assistant-message prefill
+    would be tidier but newer models reject it.) Raises on transport/
+    HTTP errors and on unparseable output; callers treat any exception
+    as "abort the cycle, keep the last good page".
     """
     payload = {
         "model": MODEL,
@@ -512,7 +516,6 @@ def _anthropic(system, user_msg, api_key, max_tokens):
         "system": system,
         "messages": [
             {"role": "user", "content": user_msg},
-            {"role": "assistant", "content": "{"},  # prefill -> force JSON
         ],
     }
     req = urllib.request.Request(
@@ -547,7 +550,7 @@ def _anthropic(system, user_msg, api_key, max_tokens):
     if stop == "max_tokens":
         log("API hit max_tokens - response may be truncated", "WARN")
 
-    text = "{" + "".join(
+    text = "".join(
         block.get("text", "")
         for block in result.get("content", [])
         if block.get("type") == "text"
