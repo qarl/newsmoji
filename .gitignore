@@ -1,4 +1,4 @@
-# Local Jimmy artifacts (per AGENTS.md - not committed)
+# Local agent / editor artifacts
 .Jimmy/
 AGENTS.md
 .claude/
@@ -7,7 +7,7 @@ AGENTS.md
 ._*
 .DS_Store
 
-# Runtime state (lives in ~/newsmoji/ on everett, never in the repo)
+# Runtime state (lives in ~/newsmoji/ on the host, never in the repo)
 newsmoji.env
 newsmoji.log
 cron.err

@@ -2,7 +2,7 @@
 """
 newsmoji - the hottest news story, retold entirely in emoji, as a newspaper.
 
-Every 10 minutes a system cron runs this script. Per cycle it:
+Run on a schedule (e.g. a 10-minute cron). Each cycle it:
 
   1. Fetches a basket of major-outlet RSS feeds into a pooled story list.
   2. Anthropic call #1 (Claude Sonnet): picks the single hottest story -
@@ -14,15 +14,14 @@ Every 10 minutes a system cron runs this script. Per cycle it:
   5. Renders a self-contained index.html laid out like a newspaper front
      page - masthead, lead emoji, the emoji story in newsprint columns.
      The page is 100% emoji: not a single word of text anywhere.
-  6. Publishes index.html to the qarl.com web host over ssh.
 
-Pure Python standard library - no pip, no venv. Runs on Einstein.
+Pure Python standard library - no pip, no venv.
 
-Robustness contract: on ANY failure (feed fetch, API call, publish,
-anything) the last good index.html stays published. Article fetch is
-best-effort - if it fails the RSS summary is used instead. The page is
-never overwritten with an error or a blank. Worst case it is a few
-minutes stale, never broken.
+Robustness contract: on ANY failure (feed fetch, API call, render,
+anything) the last good index.html is left untouched. Article fetch is
+best-effort - if it fails the RSS summary is used instead. The file is
+never overwritten with an error or a blank. Worst case it is a little
+stale, never broken.
 
 See AGENTS.md / README.md for the full picture.
 """
@@ -31,8 +30,6 @@ import html
 import json
 import os
 import re
-import shlex
-import subprocess
 import sys
 import time
 import urllib.error
@@ -71,7 +68,7 @@ RECENT_STORIES = 4                             # recent picks not to repeat
 HTTP_TIMEOUT = 12                              # per-feed fetch timeout (s)
 ARTICLE_TIMEOUT = 15                           # article-page fetch timeout (s)
 API_TIMEOUT = 60                               # Anthropic call timeout (s)
-USER_AGENT = "newsmoji/1.0 (+https://www.qarl.com/newsmoji/)"
+USER_AGENT = "newsmoji/1.0 (+https://github.com/qarl/newsmoji)"
 
 # Article body extraction
 MIN_ARTICLE_CHARS = 400                        # below this, extraction is thin
@@ -88,16 +85,6 @@ DEFAULT_FEEDS = [
     "https://moxie.foxnews.com/google-publisher/latest.xml",
     "https://feeds.skynews.com/feeds/rss/world.xml",
 ]
-
-# Publish target: the page is served from a subdirectory of the main
-# qarl.com site -> https://www.qarl.com/newsmoji/. PUBLISH_SSH is an ssh
-# destination (a Host alias from ~/.ssh/config). While publishing is
-# disabled the page is generated locally only.
-PUBLISH_SSH = os.environ.get("NEWSMOJI_PUBLISH_SSH", "newsmoji-web")
-PUBLISH_REMOTE_PATH = os.environ.get(
-    "NEWSMOJI_PUBLISH_PATH", "/home/qqqqarl/qarl.com/newsmoji/index.html"
-)
-PUBLISH_ENABLED = os.environ.get("NEWSMOJI_PUBLISH_ENABLED", "0") == "1"
 
 
 # --------------------------------------------------------------------------
@@ -831,48 +818,6 @@ def render_html(emoji, story_emoji):
 
 
 # --------------------------------------------------------------------------
-# Publishing
-# --------------------------------------------------------------------------
-
-def publish(local_path):
-    """Push index.html to the web host. scp to a .tmp, then ssh-mv (atomic).
-
-    Returns True on success. A failure here leaves the remote untouched, so
-    the previously published page keeps serving.
-    """
-    if not PUBLISH_ENABLED:
-        log("publish: disabled (NEWSMOJI_PUBLISH_ENABLED != 1) -- "
-            "page generated locally only", "WARN")
-        return False
-    if not PUBLISH_SSH or not PUBLISH_REMOTE_PATH:
-        log("publish: target not configured -- page generated locally only",
-            "WARN")
-        return False
-
-    remote_tmp = PUBLISH_REMOTE_PATH + ".tmp"
-    ssh_opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
-    scp_cmd = ["scp", "-q", *ssh_opts, str(local_path),
-               f"{PUBLISH_SSH}:{remote_tmp}"]
-    mv_cmd = ["ssh", *ssh_opts, PUBLISH_SSH,
-              f"mv -f {shlex.quote(remote_tmp)} "
-              f"{shlex.quote(PUBLISH_REMOTE_PATH)}"]
-    try:
-        subprocess.run(scp_cmd, check=True, capture_output=True,
-                       text=True, timeout=60)
-        subprocess.run(mv_cmd, check=True, capture_output=True,
-                       text=True, timeout=30)
-    except subprocess.CalledProcessError as exc:
-        log(f"publish FAIL: {' '.join(exc.cmd)} -- "
-            f"rc={exc.returncode} {exc.stderr.strip()}", "ERROR")
-        return False
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        log(f"publish FAIL: {exc}", "ERROR")
-        return False
-    log(f"published -> {PUBLISH_SSH}:{PUBLISH_REMOTE_PATH}")
-    return True
-
-
-# --------------------------------------------------------------------------
 # Main cycle
 # --------------------------------------------------------------------------
 
@@ -947,11 +892,9 @@ def main():
     log(f"rendered {INDEX_PATH} ({len(page)} bytes)")
     save_recent(headline)
 
-    published = publish(INDEX_PATH)
     elapsed = time.monotonic() - started
-    log(f"=== cycle done in {elapsed:.1f}s "
-        f"(published={published}) ===")
-    return 0 if published or not PUBLISH_ENABLED else 2
+    log(f"=== cycle done in {elapsed:.1f}s ===")
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # newsmoji
 
 The single hottest news story, retold **entirely in emoji**, laid out like a
-newspaper front page. Live at **https://www.qarl.com/newsmoji/**.
+newspaper front page.
 
 ```
                      🌍🔥📰  ->  the news, but make it emoji
@@ -9,82 +9,68 @@ newspaper front page. Live at **https://www.qarl.com/newsmoji/**.
 
 ## What it does
 
-Every 10 minutes a cron job on **Einstein** runs `newsmoji.py`, which:
+`newsmoji.py` runs one cycle, end to end:
 
 1. **Fetches** a basket of major-outlet RSS feeds into a pooled story list.
-2. **Picks** - Anthropic call #1 (Claude Sonnet) chooses the hottest story -
-   skipping any covered in the last few editions - and renders its headline
-   as a short emoji glyph.
-3. **Reads** - fetches that story's full article body from the outlet's page
+2. **Picks** - Anthropic call #1 (Claude Sonnet) chooses the single hottest
+   story, skipping ones it covered in the last few editions, and renders the
+   headline as a short emoji glyph.
+3. **Reads** the chosen story's full article body from the outlet's page
    (JSON-LD `articleBody`, with a `<p>`-scraping fallback).
 4. **Translates** - Anthropic call #2 (Claude Sonnet) retells the whole story
-   as a tight emoji narrative (a hard 70-140 emoji cap).
+   as a tight emoji narrative (a hard 70-140 emoji).
 5. **Renders** a single self-contained `index.html`: a portrait-broadsheet
    newspaper - emoji masthead, lead emoji, the emoji story in newsprint
    columns - auto-sized to fit the screen with no scrolling, and set to
-   reload itself every 10 minutes to pick up the next edition. The page is
-   100% emoji: not one word of text anywhere.
-6. **Publishes** `index.html` to the qarl.com web host over ssh.
+   reload itself every 10 minutes. The page is 100% emoji - not one word of
+   text anywhere - rendered black-on-newsprint in a monochrome emoji font.
 
-Einstein does the generating; the public site lives on the DreamHost-hosted
-qarl.com web host, so the finished page is published there over ssh.
+Run it on a schedule (say a `*/10` cron) and you have a news page that keeps
+refreshing itself with the latest story.
+
+## Running it
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...     # a pay-as-you-go console key
+python3 newsmoji.py
+```
+
+Pure Python standard library - no pip, no venv. One cycle makes two
+Anthropic API calls (pick + translate) plus one article-page fetch. The API
+key can instead live in `newsmoji.env` (a `KEY=VALUE` file) in the state
+directory.
+
+## Output & state
+
+Everything lives in the **state directory** - `~/newsmoji/` by default,
+override with `NEWSMOJI_STATE_DIR`:
+
+| File | What |
+|------|------|
+| `index.html`   | the rendered page - this is the output |
+| `newsmoji.log` | verbose per-cycle log, self-trimming at 5 MB |
+| `history.json` | recently-covered stories, so the next pick won't repeat |
+| `feeds.txt`    | optional - one RSS URL per line, replaces the default basket |
+
+The page loads **`NotoEmoji-mono.woff`** (bundled in this repo) for its
+monochrome look - serve that file alongside `index.html`.
 
 ## Robustness
 
-The page **never breaks**. On any failure - a feed is down, an API call
-fails, the publish step fails - the cycle aborts and the last good
-`index.html` keeps serving. The article fetch (step 3) is best-effort: if it
-fails, the RSS summary is used instead, then the bare headline. Worst case
-the page is a few minutes stale.
+The page never breaks. On any failure - a feed down, an API call failing, a
+bad render - the cycle aborts and the last good `index.html` is left
+untouched. Worst case the page is a little stale, never broken or blank.
 
-## Layout
-
-| Path | What |
-|------|------|
-| `newsmoji.py` | The whole runtime. Pure Python stdlib - no pip, no venv. |
-| `deploy.sh`   | Installs/refreshes the runtime + cron on Einstein. |
-| `AGENTS.md`   | Notes for Jimmy-newsmoji (not committed). |
-
-Runtime state lives in `~/newsmoji/` on Einstein (local disk, not the repo):
-`newsmoji.env` (the API key), `index.html` (last good page), `newsmoji.log`
-(verbose log), `history.json` (recently-covered stories, for de-duping),
-`cron.err`, optional `feeds.txt` (feed override).
-
-## Setup / deploy
-
-On Einstein:
-
-```sh
-cd ~/project/newsmoji
-echo 'ANTHROPIC_API_KEY=sk-ant-...' > ~/newsmoji/newsmoji.env   # console key
-chmod 600 ~/newsmoji/newsmoji.env
-./deploy.sh                 # install runtime + cron (publishing off)
-PUBLISH=1 ./deploy.sh       # ...and enable publishing once the host is wired
-```
-
-The API key must be a **standalone pay-as-you-go console key**
-(console.anthropic.com), not a Claude subscription. Each cycle makes two
-Sonnet calls (pick + translate) plus one article-page fetch.
-
-## Operating
-
-```sh
-tail -f ~/newsmoji/newsmoji.log     # watch cycles
-python3 ~/newsmoji/newsmoji.py      # run one cycle by hand (logs to stderr)
-crontab -l                          # confirm the */10 schedule
-```
-
-To change the feed basket without touching code, drop a `feeds.txt` in
-`~/newsmoji/` - one RSS URL per line, `#` for comments.
-
-## Config knobs
-
-Environment variables (set in the crontab or shell):
+## Configuration
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ANTHROPIC_API_KEY` | (from `newsmoji.env`) | API key. |
-| `NEWSMOJI_PUBLISH_ENABLED` | `0` | `1` to actually publish. |
-| `NEWSMOJI_PUBLISH_SSH` | `newsmoji-web` | ssh destination for publishing. |
-| `NEWSMOJI_PUBLISH_PATH` | `/home/qqqqarl/qarl.com/newsmoji/index.html` | remote path. |
-| `NEWSMOJI_STATE_DIR` | `~/newsmoji` | runtime state dir. |
+| `ANTHROPIC_API_KEY` | (or from `newsmoji.env`) | Anthropic API key |
+| `NEWSMOJI_STATE_DIR` | `~/newsmoji` | state + output directory |
+
+## License
+
+GPLv3 - see [`LICENSE`](LICENSE).
+
+The bundled `NotoEmoji-mono.woff` is Google's **Noto Emoji**, used under the
+SIL Open Font License 1.1.
