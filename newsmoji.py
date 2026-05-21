@@ -5,8 +5,9 @@ newsmoji - the hottest news story, retold entirely in emoji, as a newspaper.
 Every 5 minutes a system cron runs this script. Per cycle it:
 
   1. Fetches a basket of major-outlet RSS feeds into a pooled story list.
-  2. Anthropic call #1 (Claude Haiku): picks the single hottest story and
-     translates its headline into a short emoji glyph.
+  2. Anthropic call #1 (Claude Haiku): picks the single hottest story -
+     skipping ones covered in the last few editions - and translates its
+     headline into a short emoji glyph.
   3. Fetches that story's full article body from the outlet's page.
   4. Anthropic call #2 (Claude Haiku): retells the full story as a long
      emoji narrative.
@@ -53,6 +54,7 @@ LOG_PATH = STATE_DIR / "newsmoji.log"
 INDEX_PATH = STATE_DIR / "index.html"          # last successfully rendered page
 FEEDS_OVERRIDE = STATE_DIR / "feeds.txt"       # optional, one URL per line
 ENV_PATH = STATE_DIR / "newsmoji.env"          # optional KEY=VALUE config
+HISTORY_PATH = STATE_DIR / "history.json"      # recently-covered headlines
 
 MAX_LOG_BYTES = 5 * 1024 * 1024                # trim log past 5 MB
 
@@ -65,10 +67,11 @@ STORY_MAX_TOKENS = 3000                        # cap for the narration call
 
 # Story basket
 MAX_ITEMS = 60                                 # cap sent to the pick call
+RECENT_STORIES = 4                             # recent picks not to repeat
 HTTP_TIMEOUT = 12                              # per-feed fetch timeout (s)
 ARTICLE_TIMEOUT = 15                           # article-page fetch timeout (s)
 API_TIMEOUT = 60                               # Anthropic call timeout (s)
-USER_AGENT = "newsmoji/1.0 (+https://newsmoji.qarl.com)"
+USER_AGENT = "newsmoji/1.0 (+https://www.qarl.com/newsmoji/)"
 
 # Article body extraction
 MIN_ARTICLE_CHARS = 400                        # below this, extraction is thin
@@ -78,7 +81,6 @@ MAX_ARTICLE_CHARS = 6000                       # cap body text sent to model
 # not skewed by one newsroom. Override by creating STATE_DIR/feeds.txt.
 DEFAULT_FEEDS = [
     "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "https://feeds.npr.org/1001/rss.xml",
     "https://www.theguardian.com/world/rss",
     "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
     "https://www.aljazeera.com/xml/rss/all.xml",
@@ -87,13 +89,13 @@ DEFAULT_FEEDS = [
     "https://feeds.skynews.com/feeds/rss/world.xml",
 ]
 
-# Publish target. Filled in once Jimmy-www authorizes everett's key and the
-# newsmoji.qarl.com vhost exists. PUBLISH_SSH is an ssh destination (a Host
-# alias from ~/.ssh/config is fine). While blank, publishing is skipped and
-# the page is generated locally only.
+# Publish target: the page is served from a subdirectory of the main
+# qarl.com site -> https://www.qarl.com/newsmoji/. PUBLISH_SSH is an ssh
+# destination (a Host alias from ~/.ssh/config). While publishing is
+# disabled the page is generated locally only.
 PUBLISH_SSH = os.environ.get("NEWSMOJI_PUBLISH_SSH", "newsmoji-web")
 PUBLISH_REMOTE_PATH = os.environ.get(
-    "NEWSMOJI_PUBLISH_PATH", "/home/qqqqarl/newsmoji.qarl.com/index.html"
+    "NEWSMOJI_PUBLISH_PATH", "/home/qqqqarl/qarl.com/newsmoji/index.html"
 )
 PUBLISH_ENABLED = os.environ.get("NEWSMOJI_PUBLISH_ENABLED", "0") == "1"
 
@@ -183,6 +185,38 @@ def load_feeds():
             log(f"using {len(feeds)} feed(s) from {FEEDS_OVERRIDE}")
             return feeds
     return list(DEFAULT_FEEDS)
+
+
+# --------------------------------------------------------------------------
+# Story history - avoid repeating recently-covered stories
+# --------------------------------------------------------------------------
+
+def load_recent():
+    """Return the recently-covered headlines (oldest first).
+
+    Best-effort: a missing or corrupt history file yields an empty list, so
+    a history problem can never block a cycle.
+    """
+    try:
+        data = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return [str(h) for h in data][-RECENT_STORIES:]
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
+    return []
+
+
+def save_recent(headline):
+    """Append a covered headline to the rolling history (best-effort)."""
+    recent = load_recent()
+    recent.append(headline)
+    try:
+        HISTORY_PATH.write_text(
+            json.dumps(recent[-RECENT_STORIES:], ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        log(f"could not write story history ({exc})", "WARN")
 
 
 # --------------------------------------------------------------------------
@@ -409,11 +443,16 @@ def fetch_article(url):
 
 SYSTEM_PICK = (
     "You are the editor of newsmoji. You receive a numbered list of current "
-    "news headlines. Pick the SINGLE hottest one - the most significant, "
-    "urgent, or widely-discussed story right now - and translate that "
-    "headline into a SHORT, punchy sequence of emoji (2 to 6 emoji) that "
-    "captures its gist. Favour clear, recognizable emoji. The emoji field "
-    "must contain ONLY emoji - never letters, words, or names. "
+    "news headlines, and possibly a list of stories recent editions already "
+    "covered. Pick the SINGLE hottest headline - the most significant, "
+    "urgent, or widely-discussed story right now - but do NOT pick a story "
+    "that is the same event or topic as one of the recently-covered ones; "
+    "skip those and choose the hottest genuinely fresh story. If every "
+    "headline only duplicates a recently-covered story, pick the hottest "
+    "one anyway. Translate the "
+    "chosen headline into a SHORT, punchy sequence of emoji (2 to 6 emoji) "
+    "that captures its gist. Favour clear, recognizable emoji. The emoji "
+    "field must contain ONLY emoji - never letters, words, or names. "
     "Respond with JSON only, no prose, no code fences."
 )
 
@@ -491,14 +530,25 @@ def _has_emoji(text):
     return any(ord(ch) >= 0x2190 for ch in text)
 
 
-def pick_lead(items, api_key):
-    """Anthropic call #1: pick the hottest story -> (index, headline, emoji)."""
+def pick_lead(items, api_key, recent):
+    """Anthropic call #1: pick the hottest fresh story.
+
+    `recent` is a list of recently-covered headlines the pick must avoid.
+    Returns (index, headline, emoji).
+    """
     numbered = "\n".join(
         f"{i + 1}. {item['title']}" for i, item in enumerate(items)
     )
+    recent_block = ""
+    if recent:
+        recent_block = (
+            "\n\nRecent editions ALREADY covered these stories - do NOT pick "
+            "the same event or topic again:\n"
+            + "\n".join(f"- {h}" for h in recent)
+        )
     user_msg = (
         "Here are the current news headlines:\n\n"
-        f"{numbered}\n\n"
+        f"{numbered}{recent_block}\n\n"
         "Respond with exactly this JSON shape:\n"
         '{"number": <list number of the hottest story>, '
         '"headline": "<that headline, copied verbatim>", '
@@ -792,8 +842,12 @@ def main():
         return 1
     log(f"pooled {len(items)} stories from {len(feeds)} feed(s)")
 
+    recent = load_recent()
+    if recent:
+        log(f"avoiding {len(recent)} recently-covered stories")
+
     try:
-        index, headline, emoji = pick_lead(items, api_key)
+        index, headline, emoji = pick_lead(items, api_key, recent)
     except API_ERRORS as exc:
         log(f"abort: pick step failed ({exc}) -- keeping last good page",
             "ERROR")
@@ -832,6 +886,7 @@ def main():
             "keeping last good page", "ERROR")
         return 1
     log(f"rendered {INDEX_PATH} ({len(page)} bytes)")
+    save_recent(headline)
 
     published = publish(INDEX_PATH)
     elapsed = time.monotonic() - started

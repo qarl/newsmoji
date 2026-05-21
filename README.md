@@ -1,7 +1,7 @@
 # newsmoji
 
 The single hottest news story, retold **entirely in emoji**, laid out like a
-newspaper front page. Live at **https://newsmoji.qarl.com**.
+newspaper front page. Live at **https://www.qarl.com/newsmoji/**.
 
 ```
                      🌍🔥📰  ->  the news, but make it emoji
@@ -12,15 +12,17 @@ newspaper front page. Live at **https://newsmoji.qarl.com**.
 Every 5 minutes a cron job on **everett** runs `newsmoji.py`, which:
 
 1. **Fetches** a basket of major-outlet RSS feeds into a pooled story list.
-2. **Picks** - Anthropic call #1 (Claude Haiku) chooses the hottest story and
-   renders its headline as a short emoji glyph.
+2. **Picks** - Anthropic call #1 (Claude Haiku) chooses the hottest story -
+   skipping any covered in the last few editions - and renders its headline
+   as a short emoji glyph.
 3. **Reads** - fetches that story's full article body from the outlet's page
    (JSON-LD `articleBody`, with a `<p>`-scraping fallback).
 4. **Translates** - Anthropic call #2 (Claude Haiku) retells the whole story
    as a long emoji narrative.
 5. **Renders** a single self-contained `index.html`: a portrait-broadsheet
    newspaper - emoji masthead, lead emoji, the emoji story in newsprint
-   columns - auto-sized to fit the screen with no scrolling. The page is
+   columns - auto-sized to fit the screen with no scrolling, and set to
+   reload itself every 5 minutes to pick up the next edition. The page is
    100% emoji: not one word of text anywhere.
 6. **Publishes** `index.html` to the qarl.com web host over ssh.
 
@@ -45,7 +47,8 @@ the page is a few minutes stale.
 
 Runtime state lives in `~/newsmoji/` on everett (local disk, not the repo):
 `newsmoji.env` (the API key), `index.html` (last good page), `newsmoji.log`
-(verbose log), `cron.err`, optional `feeds.txt` (feed override).
+(verbose log), `history.json` (recently-covered stories, for de-duping),
+`cron.err`, optional `feeds.txt` (feed override).
 
 ## Setup / deploy
 
@@ -83,5 +86,5 @@ Environment variables (set in the crontab or shell):
 | `ANTHROPIC_API_KEY` | (from `newsmoji.env`) | API key. |
 | `NEWSMOJI_PUBLISH_ENABLED` | `0` | `1` to actually publish. |
 | `NEWSMOJI_PUBLISH_SSH` | `newsmoji-web` | ssh destination for publishing. |
-| `NEWSMOJI_PUBLISH_PATH` | `/home/qqqqarl/newsmoji.qarl.com/index.html` | remote path. |
+| `NEWSMOJI_PUBLISH_PATH` | `/home/qqqqarl/qarl.com/newsmoji/index.html` | remote path. |
 | `NEWSMOJI_STATE_DIR` | `~/newsmoji` | runtime state dir. |
