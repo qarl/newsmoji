@@ -1,0 +1,19 @@
+# Local Jimmy artifacts (per AGENTS.md - not committed)
+.Jimmy/
+AGENTS.md
+.claude/
+
+# macOS / NFS metadata
+._*
+.DS_Store
+
+# Runtime state (lives in ~/newsmoji/ on everett, never in the repo)
+newsmoji.env
+newsmoji.log
+cron.err
+index.html
+feeds.txt
+
+# Python
+__pycache__/
+*.pyc
