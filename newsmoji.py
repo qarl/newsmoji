@@ -783,13 +783,15 @@ def render_html(emoji, story_emoji):
         dateline=dateline,
         epoch=int(time.time()),
     )
-    # Keycap emoji compose only in the minimally-qualified form
-    # (digit + U+20E3): the Noto Emoji ligature is [digit, U+20E3], so a
-    # variation selector U+FE0F wedged between the two blocks it. Strip the
-    # FE0F from keycap sequences only -- every other emoji keeps its own.
-    # This also fixes the JS-built clock, whose keycap literal is plain
-    # text in the template at this point.
-    return page.replace("\uFE0F\u20E3", "\u20E3")
+    # Strip every U+FE0F (emoji-presentation variation selector). The
+    # self-hosted monochrome Noto Emoji carries no cmap format-14 table, so
+    # a browser reads an explicit FE0F as "this font can't do emoji
+    # presentation here" and falls back to a colour emoji font -- which
+    # breaks the all-monochrome look (most visibly on Linux, via Noto
+    # Color Emoji). The font has a glyph for every emoji used here and
+    # references FE0F in zero GSUB ligatures, so dropping it is safe: it
+    # also lets keycap (digit + U+20E3) and ZWJ ligatures shape cleanly.
+    return page.replace("\uFE0F", "")
 
 
 # --------------------------------------------------------------------------
