@@ -5,7 +5,7 @@
 # Run this ON Einstein. It is idempotent: re-run any time after editing
 # newsmoji.py. It copies the script from the repo into a stable runtime dir
 # (~/newsmoji) separate from the git working tree, ensures the ssh publish
-# alias exists, and installs the */5 cron job.
+# alias exists, and installs the */10 cron job.
 #
 #   ./deploy.sh            install runtime + cron, publishing DISABLED
 #   PUBLISH=1 ./deploy.sh  same, but enable publishing to the web host
@@ -72,7 +72,7 @@ else
     echo "  -> publishing disabled (run 'PUBLISH=1 ./deploy.sh' to enable)"
 fi
 
-CRON_LINE="*/5 * * * * ${PUBLISH_ENV}${PYTHON} ${RUNTIME_DIR}/newsmoji.py >> ${RUNTIME_DIR}/cron.err 2>&1 ${CRON_TAG}"
+CRON_LINE="*/10 * * * * ${PUBLISH_ENV}${PYTHON} ${RUNTIME_DIR}/newsmoji.py >> ${RUNTIME_DIR}/cron.err 2>&1 ${CRON_TAG}"
 # De-dup on our own tag only, so an unrelated cron line is never touched.
 { crontab -l 2>/dev/null | grep -vF "${CRON_TAG}" || true; echo "${CRON_LINE}"; } | crontab -
 echo "  -> cron installed:"

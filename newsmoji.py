@@ -2,21 +2,21 @@
 """
 newsmoji - the hottest news story, retold entirely in emoji, as a newspaper.
 
-Every 5 minutes a system cron runs this script. Per cycle it:
+Every 10 minutes a system cron runs this script. Per cycle it:
 
   1. Fetches a basket of major-outlet RSS feeds into a pooled story list.
-  2. Anthropic call #1 (Claude Haiku): picks the single hottest story -
+  2. Anthropic call #1 (Claude Sonnet): picks the single hottest story -
      skipping ones covered in the last few editions - and translates its
      headline into a short emoji glyph.
   3. Fetches that story's full article body from the outlet's page.
-  4. Anthropic call #2 (Claude Haiku): retells the full story as a long
-     emoji narrative.
+  4. Anthropic call #2 (Claude Sonnet): retells the full story as a
+     tight emoji narrative.
   5. Renders a self-contained index.html laid out like a newspaper front
      page - masthead, lead emoji, the emoji story in newsprint columns.
      The page is 100% emoji: not a single word of text anywhere.
   6. Publishes index.html to the qarl.com web host over ssh.
 
-Pure Python standard library - no pip, no venv. Runs on everett.
+Pure Python standard library - no pip, no venv. Runs on Einstein.
 
 Robustness contract: on ANY failure (feed fetch, API call, publish,
 anything) the last good index.html stays published. Article fetch is
@@ -46,8 +46,8 @@ from pathlib import Path
 # Configuration
 # --------------------------------------------------------------------------
 
-# Where runtime state lives. Deliberately on everett's local disk (NOT the
-# JuiceFS-mounted repo) so a JuiceFS hiccup can't break the cron runtime.
+# Where runtime state lives. Deliberately a dir of its own, separate from
+# the git working tree, so a repo operation can't disturb a live cron.
 STATE_DIR = Path(os.environ.get("NEWSMOJI_STATE_DIR", Path.home() / "newsmoji"))
 
 LOG_PATH = STATE_DIR / "newsmoji.log"
@@ -488,14 +488,17 @@ SYSTEM_PICK = (
 
 SYSTEM_NARRATE = (
     "You are the editor of newsmoji. You receive one full news story. "
-    "Retell the WHOLE story as a long, detailed sequence of emoji - an "
-    "emoji newspaper article. Walk through it in order: who, what, where, "
-    "when, why, and what happens next. Be thorough and specific; use as "
-    "many emoji as the story needs (aim for 70 to 140). Separate every "
-    "emoji - or tight 2-3 emoji phrase - with a single space, like emoji "
-    "words in a sentence. Use ONLY emoji: never letters, words, or names, "
-    "and write any numbers as number/keycap emoji. A reader should be able "
-    "to follow the whole story from the emoji alone. "
+    "Retell the WHOLE story as a sequence of emoji - an emoji newspaper "
+    "article. Walk through it in order: who, what, where, when, why, and "
+    "what happens next. "
+    "HARD LIMIT: use between 70 and 140 emoji - NEVER more than 140. If "
+    "the story is rich, summarise and prioritise; do not sprawl, and do "
+    "not repeat the same emoji again and again. "
+    "Separate every emoji - or tight 2-3 emoji phrase - with a single "
+    "space, like emoji words in a sentence. Use ONLY emoji: never "
+    "letters, words, or names, and write any numbers as number/keycap "
+    "emoji. A reader should be able to follow the whole story from the "
+    "emoji alone. "
     "Respond with JSON only, no prose, no code fences."
 )
 
@@ -645,7 +648,7 @@ PAGE_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="300">
+<meta http-equiv="refresh" content="600">
 <meta name="robots" content="index, follow">
 <title>📰😀</title>
 <style>
@@ -742,7 +745,7 @@ PAGE_TEMPLATE = """<!doctype html>
   <div id="lead-emoji" class="emoji">{emoji}</div>
   <hr id="hr">
   <div id="story" class="emoji">{story_emoji}</div>
-  <div id="footer" class="emoji" data-epoch="{epoch}">🔄 5️⃣</div>
+  <div id="footer" class="emoji" data-epoch="{epoch}">🔄 1️⃣0️⃣</div>
 </div>
 <script>
 (function () {{
@@ -762,7 +765,7 @@ PAGE_TEMPLATE = """<!doctype html>
       }});
     }};
     footer.textContent = "🗞️ 🕐 " + kc(d.getHours()) + " "
-      + kc(d.getMinutes()) + "   🔄 5️⃣";
+      + kc(d.getMinutes()) + "   🔄 1️⃣0️⃣";
   }}
 
   // Fit the whole front page onto the sheet with no scrolling: binary

@@ -9,20 +9,20 @@ newspaper front page. Live at **https://www.qarl.com/newsmoji/**.
 
 ## What it does
 
-Every 5 minutes a cron job on **Einstein** runs `newsmoji.py`, which:
+Every 10 minutes a cron job on **Einstein** runs `newsmoji.py`, which:
 
 1. **Fetches** a basket of major-outlet RSS feeds into a pooled story list.
-2. **Picks** - Anthropic call #1 (Claude Haiku) chooses the hottest story -
+2. **Picks** - Anthropic call #1 (Claude Sonnet) chooses the hottest story -
    skipping any covered in the last few editions - and renders its headline
    as a short emoji glyph.
 3. **Reads** - fetches that story's full article body from the outlet's page
    (JSON-LD `articleBody`, with a `<p>`-scraping fallback).
-4. **Translates** - Anthropic call #2 (Claude Haiku) retells the whole story
-   as a long emoji narrative.
+4. **Translates** - Anthropic call #2 (Claude Sonnet) retells the whole story
+   as a tight emoji narrative (a hard 70-140 emoji cap).
 5. **Renders** a single self-contained `index.html`: a portrait-broadsheet
    newspaper - emoji masthead, lead emoji, the emoji story in newsprint
    columns - auto-sized to fit the screen with no scrolling, and set to
-   reload itself every 5 minutes to pick up the next edition. The page is
+   reload itself every 10 minutes to pick up the next edition. The page is
    100% emoji: not one word of text anywhere.
 6. **Publishes** `index.html` to the qarl.com web host over ssh.
 
@@ -64,14 +64,14 @@ PUBLISH=1 ./deploy.sh       # ...and enable publishing once the host is wired
 
 The API key must be a **standalone pay-as-you-go console key**
 (console.anthropic.com), not a Claude subscription. Each cycle makes two
-Haiku calls (pick + translate) plus one article-page fetch.
+Sonnet calls (pick + translate) plus one article-page fetch.
 
 ## Operating
 
 ```sh
 tail -f ~/newsmoji/newsmoji.log     # watch cycles
 python3 ~/newsmoji/newsmoji.py      # run one cycle by hand (logs to stderr)
-crontab -l                          # confirm the */5 schedule
+crontab -l                          # confirm the */10 schedule
 ```
 
 To change the feed basket without touching code, drop a `feeds.txt` in
