@@ -4,8 +4,12 @@ The single hottest news story, retold **entirely in emoji**, laid out like a
 newspaper front page. The future of being informed.
 
 <p align="center">
-  <img src="screenshot.png" width="420"
-       alt="newsmoji - an all-emoji newspaper front page, rendered in monochrome">
+  <a href="https://www.qarl.com/newsmoji/">
+    <img src="screenshot.png" width="420"
+         alt="newsmoji - an all-emoji newspaper front page, rendered in monochrome">
+  </a>
+  <br>
+  <strong><a href="https://www.qarl.com/newsmoji/">Read today's edition, live &rarr;</a></strong>
 </p>
 
 ## Why
