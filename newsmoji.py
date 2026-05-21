@@ -806,15 +806,18 @@ def render_html(emoji, story_emoji):
         dateline=dateline,
         epoch=int(time.time()),
     )
-    # Strip every U+FE0F (emoji-presentation variation selector). The
-    # self-hosted monochrome Noto Emoji carries no cmap format-14 table, so
-    # a browser reads an explicit FE0F as "this font can't do emoji
-    # presentation here" and falls back to a colour emoji font -- which
-    # breaks the all-monochrome look (most visibly on Linux, via Noto
-    # Color Emoji). The font has a glyph for every emoji used here and
-    # references FE0F in zero GSUB ligatures, so dropping it is safe: it
-    # also lets keycap (digit + U+20E3) and ZWJ ligatures shape cleanly.
-    return page.replace("\uFE0F", "")
+    # Normalise the emoji for the monochrome webfont. Two things make a
+    # browser abandon it and fall back to a colour emoji font (most
+    # visibly on Linux, via Noto Color Emoji):
+    #   - U+FE0F, the emoji-presentation selector: the mono font carries
+    #     no cmap format-14 table, so a browser reads an explicit FE0F as
+    #     "this font can't do emoji presentation here".
+    #   - U+1F3FB..U+1F3FF, the skin-tone modifiers: a skin-toned cluster
+    #     gets routed to a colour font, and skin tone is meaningless on a
+    #     black-on-newsprint page anyway.
+    # Dropping both is safe: it leaves the bare base emoji (which the font
+    # renders) and still lets keycap and ZWJ ligatures shape.
+    return re.sub(r"[\uFE0F\U0001F3FB-\U0001F3FF]", "", page)
 
 
 # --------------------------------------------------------------------------
