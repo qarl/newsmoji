@@ -61,7 +61,7 @@ MAX_LOG_BYTES = 5 * 1024 * 1024                # trim log past 5 MB
 # Anthropic API
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
-MODEL = "claude-haiku-4-5"                     # cheap; the task is easy
+MODEL = "claude-sonnet-4-6"                    # stronger emoji translation
 MAX_TOKENS = 600                               # cap for the pick call
 STORY_MAX_TOKENS = 3000                        # cap for the narration call
 
@@ -224,7 +224,31 @@ def save_recent(headline):
 # --------------------------------------------------------------------------
 
 _TAG_RE = re.compile(r"<[^>]+>")
-_ASCII_WORD_RE = re.compile(r"[A-Za-z]+")
+# Codepoint ranges that are emoji, or the shaping machinery emoji need
+# (zero-width joiner, variation selectors, keycap combiner, tag chars).
+# enforce_emoji() keeps only these (plus ASCII digits and spaces) and
+# drops everything else - letters, accents, punctuation, stray symbols.
+_EMOJI_RANGES = (
+    (0x00A9, 0x00A9), (0x00AE, 0x00AE),        # (c)  (r)
+    (0x200D, 0x200D),                          # zero-width joiner
+    (0x203C, 0x203C), (0x2049, 0x2049),        # !!  !?
+    (0x20E3, 0x20E3),                          # combining enclosing keycap
+    (0x2122, 0x2122), (0x2139, 0x2139),        # TM  info
+    (0x2190, 0x2BFF),                          # arrows, symbols, dingbats
+    (0x3030, 0x3030), (0x303D, 0x303D),
+    (0x3297, 0x3297), (0x3299, 0x3299),
+    (0xFE00, 0xFE0F),                          # variation selectors
+    (0x1F000, 0x1FAFF),                        # emoji planes, flags, skin
+    (0xE0020, 0xE007F),                        # tag chars (subdivision flags)
+)
+
+
+def _is_emoji_char(ch):
+    """True if ch is an emoji or part of emoji shaping machinery."""
+    cp = ord(ch)
+    return any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES)
+
+
 # A bare ASCII digit - one NOT already part of a keycap emoji sequence
 # (digit + U+FE0F + U+20E3), so existing keycaps are left intact.
 _BARE_DIGIT_RE = re.compile(r"[0-9](?![️⃣])")
@@ -246,15 +270,21 @@ def clean_text(raw):
 
 
 def enforce_emoji(text):
-    """Force a model emoji field to be 100% emoji: no letters, no bare digits.
+    """Force a model emoji field to be 100% emoji.
 
-    Drops any ASCII letter runs and promotes any stray ASCII digit to its
-    keycap-emoji form, then re-normalises spacing so the space-separated
-    emoji layout survives. A defensive net - the prompts already ask for
-    emoji only, but the all-emoji page contract is strict.
+    Keeps only emoji, the shaping machinery emoji need, and ASCII
+    digits (promoted to keycap emoji); every other character --
+    letters whether ASCII or accented, punctuation, stray symbols --
+    is dropped. Spacing is re-normalised so the space-separated
+    layout survives. A defensive net: the prompts ask for emoji
+    only, but the all-emoji page contract is strict and must not
+    depend on the model behaving.
     """
-    text = _ASCII_WORD_RE.sub(" ", text)
-    text = _BARE_DIGIT_RE.sub(lambda m: m.group() + "️⃣", text)
+    text = "".join(
+        ch if (ch in "0123456789" or _is_emoji_char(ch)) else " "
+        for ch in text
+    )
+    text = _BARE_DIGIT_RE.sub(lambda m: m.group() + "\uFE0F\u20E3", text)
     return " ".join(text.split())
 
 
@@ -684,7 +714,7 @@ PAGE_TEMPLATE = """<!doctype html>
     border: 0; border-top: 3px double var(--rule); margin: 2px 0 18px;
   }}
   #story {{
-    columns: 3 8rem; column-gap: 20px;
+    columns: 2 8rem; column-gap: 20px;
     column-rule: 1px solid var(--hair);
     font-size: 6cqi; line-height: 1.5;
     text-align: justify; word-spacing: 0.04em;
