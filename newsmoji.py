@@ -707,8 +707,8 @@ PAGE_TEMPLATE = """<!doctype html>
     border: 0; border-top: 3px double var(--rule); margin: 2px 0 18px;
   }}
   #story {{
-    columns: 2 8rem; column-gap: 38px;
-    column-rule: 1px solid var(--hair);
+    columns: 2 8rem; column-gap: 96px;
+    column-rule: 1px solid var(--rule);
     font-size: 6cqi; line-height: 1.5;
     text-align: justify; word-spacing: 0.04em;
   }}
