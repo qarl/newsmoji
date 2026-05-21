@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# deploy.sh - install / refresh the newsmoji runtime on everett.
+# deploy.sh - install / refresh the newsmoji runtime on Einstein.
 #
-# Run this ON everett. It is idempotent: re-run any time after editing
-# newsmoji.py. It copies the script from the repo onto everett's local disk
-# (NOT the JuiceFS repo, so a JuiceFS hiccup can't break cron), ensures the
-# ssh publish alias exists, and installs the */5 cron job.
+# Run this ON Einstein. It is idempotent: re-run any time after editing
+# newsmoji.py. It copies the script from the repo into a stable runtime dir
+# (~/newsmoji) separate from the git working tree, ensures the ssh publish
+# alias exists, and installs the */5 cron job.
 #
 #   ./deploy.sh            install runtime + cron, publishing DISABLED
 #   PUBLISH=1 ./deploy.sh  same, but enable publishing to the web host

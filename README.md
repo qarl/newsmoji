@@ -9,7 +9,7 @@ newspaper front page. Live at **https://www.qarl.com/newsmoji/**.
 
 ## What it does
 
-Every 5 minutes a cron job on **everett** runs `newsmoji.py`, which:
+Every 5 minutes a cron job on **Einstein** runs `newsmoji.py`, which:
 
 1. **Fetches** a basket of major-outlet RSS feeds into a pooled story list.
 2. **Picks** - Anthropic call #1 (Claude Haiku) chooses the hottest story -
@@ -26,8 +26,8 @@ Every 5 minutes a cron job on **everett** runs `newsmoji.py`, which:
    100% emoji: not one word of text anywhere.
 6. **Publishes** `index.html` to the qarl.com web host over ssh.
 
-everett is tailnet-only and can't serve the public internet, so it generates
-the page and pushes it to the public DreamHost-hosted web host.
+Einstein does the generating; the public site lives on the DreamHost-hosted
+qarl.com web host, so the finished page is published there over ssh.
 
 ## Robustness
 
@@ -42,20 +42,20 @@ the page is a few minutes stale.
 | Path | What |
 |------|------|
 | `newsmoji.py` | The whole runtime. Pure Python stdlib - no pip, no venv. |
-| `deploy.sh`   | Installs/refreshes the runtime + cron on everett. |
+| `deploy.sh`   | Installs/refreshes the runtime + cron on Einstein. |
 | `AGENTS.md`   | Notes for Jimmy-newsmoji (not committed). |
 
-Runtime state lives in `~/newsmoji/` on everett (local disk, not the repo):
+Runtime state lives in `~/newsmoji/` on Einstein (local disk, not the repo):
 `newsmoji.env` (the API key), `index.html` (last good page), `newsmoji.log`
 (verbose log), `history.json` (recently-covered stories, for de-duping),
 `cron.err`, optional `feeds.txt` (feed override).
 
 ## Setup / deploy
 
-On everett:
+On Einstein:
 
 ```sh
-cd /project/newsmoji
+cd ~/project/newsmoji
 echo 'ANTHROPIC_API_KEY=sk-ant-...' > ~/newsmoji/newsmoji.env   # console key
 chmod 600 ~/newsmoji/newsmoji.env
 ./deploy.sh                 # install runtime + cron (publishing off)
