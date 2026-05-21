@@ -10,6 +10,12 @@
 #   ./deploy.sh            install runtime + cron, publishing DISABLED
 #   PUBLISH=1 ./deploy.sh  same, but enable publishing to the web host
 #
+# ONE-TIME web-host asset (NOT handled here, NOT in the repo): the page
+# renders in monochrome via a self-hosted webfont that must sit next to
+# index.html on the qarl.com host:
+#   scp NotoEmoji-mono.woff newsmoji-web:/home/qqqqarl/qarl.com/newsmoji/
+# Without it the page still works but falls back to colour system emoji.
+#
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

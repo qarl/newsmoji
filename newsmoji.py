@@ -616,6 +616,17 @@ PAGE_TEMPLATE = """<!doctype html>
 <meta name="robots" content="index, follow">
 <title>📰😀</title>
 <style>
+  /* Self-hosted complete Noto Emoji (monochrome), served whole in one file
+     so its GSUB ligatures can shape: keycaps (digit + U+20E3) and the
+     thousands of ZWJ / skin-tone / flag sequences. Google Fonts' per-range
+     subsetting splits those across files, so the sequences fail to compose
+     and the browser falls back to colour emoji. No local() -- always use
+     this exact file so every viewer renders identically. */
+  @font-face {{
+    font-family: "Noto Emoji";
+    src: url("NotoEmoji-mono.woff") format("woff");
+    font-display: swap;
+  }}
   :root {{
     --paper: #f4efe1;
     --ink: #1a1712;
@@ -631,8 +642,11 @@ PAGE_TEMPLATE = """<!doctype html>
   body {{
     display: flex; align-items: center; justify-content: center;
   }}
+  /* Monochrome "Noto Emoji" first, for a black-on-newsprint look; if the
+     webfont fails to load we fall back to the system colour emoji fonts so
+     the page is never blank. */
   .emoji {{
-    font-family: "Apple Color Emoji", "Segoe UI Emoji",
+    font-family: "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji",
                  "Noto Color Emoji", serif;
   }}
   /* The sheet: forced into a portrait broadsheet even on a landscape
@@ -763,12 +777,19 @@ def render_html(emoji, story_emoji):
         + _emoji_number(f"{now.month:02d}") + " · "
         + _emoji_number(now.year)
     )
-    return PAGE_TEMPLATE.format(
+    page = PAGE_TEMPLATE.format(
         emoji=html.escape(emoji),
         story_emoji=html.escape(story_emoji),
         dateline=dateline,
         epoch=int(time.time()),
     )
+    # Keycap emoji compose only in the minimally-qualified form
+    # (digit + U+20E3): the Noto Emoji ligature is [digit, U+20E3], so a
+    # variation selector U+FE0F wedged between the two blocks it. Strip the
+    # FE0F from keycap sequences only -- every other emoji keeps its own.
+    # This also fixes the JS-built clock, whose keycap literal is plain
+    # text in the template at this point.
+    return page.replace("\uFE0F\u20E3", "\u20E3")
 
 
 # --------------------------------------------------------------------------
