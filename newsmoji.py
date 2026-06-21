@@ -58,7 +58,7 @@ MAX_LOG_BYTES = 5 * 1024 * 1024                # trim log past 5 MB
 # Anthropic API
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
-MODEL = "claude-sonnet-4-6"                    # stronger emoji translation
+MODEL = "claude-haiku-4-5"                     # ~3x cheaper; nobody reads anyway
 MAX_TOKENS = 600                               # cap for the pick call
 STORY_MAX_TOKENS = 3000                        # cap for the narration call
 
