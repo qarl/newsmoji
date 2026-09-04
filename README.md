@@ -6,7 +6,7 @@ newspaper front page. The future of being informed.
 <p align="center">
   <a href="https://www.qarl.com/newsmoji/">
     <img src="screenshot.png" width="420"
-         alt="newsmoji - an all-emoji newspaper front page, rendered in monochrome">
+         alt="newsmoji - an all-emoji newspaper front page, printed in grayscale on newsprint">
   </a>
   <br>
   <strong><a href="https://www.qarl.com/newsmoji/">Read today's edition, live &rarr;</a></strong>
@@ -46,8 +46,9 @@ meeting who knows what is going on in the world.
    newspaper - emoji masthead, lead emoji, the emoji story in newsprint
    columns - auto-sized to fit the screen with no scrolling (scrolling is a
    form of reading), and set to reload itself every 10 minutes. The page is
-   100% emoji: not one word of text anywhere, rendered black-on-newsprint in
-   a tasteful monochrome emoji font.
+   100% emoji: not one word of text anywhere, printed on newsprint - the
+   colour emoji desaturated to grayscale so they read as ink, and the date
+   and any year drawn as a little calendar page.
 
 Run it on a schedule (say a `*/10` cron) and you have a news page that keeps
 itself current, indefinitely, with no further need for words.
@@ -76,8 +77,8 @@ override with `NEWSMOJI_STATE_DIR`:
 | `history.json` | recently-covered stories, so the next pick won't repeat |
 | `feeds.txt`    | optional - one RSS URL per line, replaces the default basket |
 
-The page loads **`NotoEmoji-mono.woff`** (bundled in this repo) for its
-monochrome look - serve that file alongside `index.html`.
+The page is self-contained: it uses the viewer's own system emoji font (no
+web font to serve), so `index.html` is the only file you need to publish.
 
 ## Robustness
 
@@ -97,6 +98,3 @@ public must be informed.
 
 GPLv3 - see [`LICENSE`](LICENSE). Free as in speech, itself a legacy text
 format.
-
-The bundled `NotoEmoji-mono.woff` is Google's **Noto Emoji**, used under the
-SIL Open Font License 1.1.
