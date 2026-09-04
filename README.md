@@ -35,11 +35,11 @@ meeting who knows what is going on in the world.
 `newsmoji.py` runs one cycle, end to end:
 
 1. **Fetches** a basket of major-outlet RSS feeds into a pooled story list.
-2. **Picks** - Anthropic call #1 (Claude Sonnet) chooses the single hottest
+2. **Picks** - Anthropic call #1 (Claude Haiku) chooses the single hottest
    story, skipping ones it covered in the last few editions, and renders the
    headline as a short emoji glyph.
 3. **Reads** the chosen story's full article body, so that you do not have to.
-4. **Translates** - Anthropic call #2 (Claude Sonnet) retells the whole story
+4. **Translates** - Anthropic call #2 (Claude Haiku) retells the whole story
    as a tight emoji narrative: a hard 70-140 emoji, the modern attention
    span, generously rounded up.
 5. **Renders** a self-contained `index.html`: a portrait-broadsheet
