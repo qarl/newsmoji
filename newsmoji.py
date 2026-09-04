@@ -236,9 +236,10 @@ def _is_emoji_char(ch):
     return any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES)
 
 
-# A bare ASCII digit - one NOT already part of a keycap emoji sequence
-# (digit + U+FE0F + U+20E3), so existing keycaps are left intact.
-_BARE_DIGIT_RE = re.compile(r"[0-9](?![️⃣])")
+# A keycap-digit sequence the model may emit (digit + optional U+FE0F +
+# U+20E3). Normalised back to a bare digit so render_html is the single place
+# that decides how a number is shown -- keycap emoji, or a calendar for a year.
+_KEYCAP_RE = re.compile("([0-9])️?⃣")
 
 # RSS/Atom child tags that can carry a story summary. We keep whichever
 # yields the most text, so a richer field always wins over a terse one.
@@ -257,21 +258,23 @@ def clean_text(raw):
 
 
 def enforce_emoji(text):
-    """Force a model emoji field to be 100% emoji.
+    """Force a model emoji field to be 100% emoji (plus bare digits).
 
-    Keeps only emoji, the shaping machinery emoji need, and ASCII
-    digits (promoted to keycap emoji); every other character --
-    letters whether ASCII or accented, punctuation, stray symbols --
-    is dropped. Spacing is re-normalised so the space-separated
-    layout survives. A defensive net: the prompts ask for emoji
-    only, but the all-emoji page contract is strict and must not
-    depend on the model behaving.
+    Keeps only emoji and the shaping machinery emoji need; every other
+    character -- letters whether ASCII or accented, punctuation, stray
+    symbols -- is dropped. ASCII digits are kept as BARE digits (any keycap
+    the model emitted is normalised back to a bare digit), so how a number
+    is shown -- keycap emoji, or a calendar icon for a 4-digit year -- is a
+    single decision made later in render_html. Spacing is re-normalised so
+    the space-separated layout survives. A defensive net: the prompts ask
+    for emoji only, but the all-emoji page contract must not depend on the
+    model behaving.
     """
     text = "".join(
         ch if (ch in "0123456789" or _is_emoji_char(ch)) else " "
         for ch in text
     )
-    text = _BARE_DIGIT_RE.sub(lambda m: m.group() + "\uFE0F\u20E3", text)
+    text = _KEYCAP_RE.sub(r"\1", text)
     return " ".join(text.split())
 
 
@@ -483,9 +486,9 @@ SYSTEM_NARRATE = (
     "not repeat the same emoji again and again. "
     "Separate every emoji - or tight 2-3 emoji phrase - with a single "
     "space, like emoji words in a sentence. Use ONLY emoji: never "
-    "letters, words, or names, and write any numbers as number/keycap "
-    "emoji. A reader should be able to follow the whole story from the "
-    "emoji alone. "
+    "letters, words, or names, but write any numbers (years, counts) as "
+    "plain digits 0-9. A reader should be able to follow the whole story "
+    "from the emoji alone. "
     "Respond with JSON only, no prose, no code fences."
 )
 
@@ -621,13 +624,94 @@ def emojify_story(headline, body, api_key):
 # HTML rendering
 # --------------------------------------------------------------------------
 
-# digit -> keycap emoji (e.g. "2" -> 2 + variation selector + enclosing keycap)
-_KEYCAP = {str(d): f"{d}️⃣" for d in range(10)}
+def _calendar_svg(year):
+    """Inline SVG of a tear-off calendar page showing a year, drawn as line-art
+    in the sheet's ink on a transparent body so the newsprint shows through.
+    Being an SVG (not an emoji) it renders identically on every platform. Used
+    for the masthead year and for any year that appears in the emoji story.
+    Callers pass a digit-only year (a \\d+ run, or now.year), so the value is
+    embedded without escaping.
+    """
+    year = str(year)
+    return (
+        '<svg class="cal" viewBox="0 0 120 112" role="img" '
+        f'aria-label="{year}" xmlns="http://www.w3.org/2000/svg" '
+        'fill="none" stroke="currentColor">'
+        '<line x1="40" y1="6" x2="40" y2="25" stroke-width="7" '
+        'stroke-linecap="round"/>'
+        '<line x1="80" y1="6" x2="80" y2="25" stroke-width="7" '
+        'stroke-linecap="round"/>'
+        '<rect x="12" y="15" width="96" height="91" rx="13" stroke-width="7"/>'
+        '<line x1="12" y1="42" x2="108" y2="42" stroke-width="6"/>'
+        f'<text x="60" y="88" text-anchor="middle" textLength="84" '
+        f'lengthAdjust="spacingAndGlyphs" stroke="none" fill="currentColor" '
+        f'font-family="Georgia,serif" font-weight="700" font-size="40">'
+        f'{year}</text>'
+        '</svg>'
+    )
 
 
-def _emoji_number(value):
-    """Render an integer (or digit string) as keycap-digit emoji."""
-    return "".join(_KEYCAP.get(ch, ch) for ch in str(value))
+def _masthead_calendar(now):
+    """Masthead calendar page: day · month in the header, the year large in the
+    body. (Years inside the story use the year-only _calendar_svg.) All fields
+    are digits (day and month zero-padded), so they are embedded unescaped.
+    """
+    day, month, year = f"{now.day:02d}", f"{now.month:02d}", str(now.year)
+    return (
+        '<svg class="cal" viewBox="0 0 120 122" role="img" '
+        f'aria-label="{day} {month} {year}" xmlns="http://www.w3.org/2000/svg" '
+        'fill="none" stroke="currentColor">'
+        '<line x1="40" y1="6" x2="40" y2="27" stroke-width="7" '
+        'stroke-linecap="round"/>'
+        '<line x1="80" y1="6" x2="80" y2="27" stroke-width="7" '
+        'stroke-linecap="round"/>'
+        '<rect x="12" y="17" width="96" height="98" rx="13" stroke-width="7"/>'
+        '<line x1="12" y1="47" x2="108" y2="47" stroke-width="5"/>'
+        f'<text x="60" y="40" text-anchor="middle" textLength="70" '
+        f'lengthAdjust="spacingAndGlyphs" stroke="none" fill="currentColor" '
+        f'font-family="Georgia,serif" font-weight="700" font-size="20">'
+        f'{day} · {month}</text>'
+        f'<text x="60" y="99" text-anchor="middle" textLength="84" '
+        f'lengthAdjust="spacingAndGlyphs" stroke="none" fill="currentColor" '
+        f'font-family="Georgia,serif" font-weight="700" font-size="40">'
+        f'{year}</text>'
+        '</svg>'
+    )
+
+
+# A 4-digit number in this range reads as a year and is drawn as a calendar
+# icon; any other number (a count, a 4-digit outside the range) stays numeric.
+YEAR_MIN, YEAR_MAX = 1000, 2099
+
+
+def _emoji_to_html(text):
+    """Turn an emoji string (bare ASCII digits) into page HTML: a bare 4-digit
+    run in the year range (YEAR_MIN..YEAR_MAX) becomes a calendar-year icon,
+    any other digit run becomes keycap-digit emoji, and the emoji between is
+    HTML-escaped. Keycaps the model may have emitted are normalised to bare
+    digits first, so this is the single place that decides how a number is
+    shown. The calendar SVG is emitted raw -- markup we generate, not model
+    output.
+    """
+    text = _KEYCAP_RE.sub(r"\1", text)
+
+    def chunk(s):
+        # Emoji sit flush together; the separator spaces become zero-width
+        # <wbr> break opportunities, so the run still wraps between emoji
+        # (never mid-glyph) inside the newspaper columns.
+        return html.escape(s).replace(" ", "<wbr>")
+
+    parts = []
+    pos = 0
+    for m in re.finditer(r"\d+", text):
+        parts.append(chunk(text[pos:m.start()]))
+        run = m.group()
+        is_year = len(run) == 4 and YEAR_MIN <= int(run) <= YEAR_MAX
+        parts.append(_calendar_svg(run) if is_year
+                     else '<span class="num">' + html.escape(run) + "</span>")
+        pos = m.end()
+    parts.append(chunk(text[pos:]))
+    return "".join(parts)
 
 
 PAGE_TEMPLATE = """<!doctype html>
@@ -639,17 +723,6 @@ PAGE_TEMPLATE = """<!doctype html>
 <meta name="robots" content="index, follow">
 <title>📰😀</title>
 <style>
-  /* Self-hosted complete Noto Emoji (monochrome), served whole in one file
-     so its GSUB ligatures can shape: keycaps (digit + U+20E3) and the
-     thousands of ZWJ / skin-tone / flag sequences. Google Fonts' per-range
-     subsetting splits those across files, so the sequences fail to compose
-     and the browser falls back to colour emoji. No local() -- always use
-     this exact file so every viewer renders identically. */
-  @font-face {{
-    font-family: "Noto Emoji";
-    src: url("NotoEmoji-mono.woff") format("woff");
-    font-display: swap;
-  }}
   :root {{
     --paper: #f4efe1;
     --ink: #1a1712;
@@ -665,12 +738,15 @@ PAGE_TEMPLATE = """<!doctype html>
   body {{
     display: flex; align-items: center; justify-content: center;
   }}
-  /* Monochrome "Noto Emoji" first, for a black-on-newsprint look; if the
-     webfont fails to load we fall back to the system colour emoji fonts so
-     the page is never blank. */
+  /* System colour emoji, desaturated to grayscale and multiply-blended onto
+     the newsprint paper: every white pixel in a glyph becomes the paper
+     colour and the darks stay ink -- a printed, inked-on-newsprint look
+     built from the detailed colour glyphs instead of a flat outline font. */
   .emoji {{
-    font-family: "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji",
+    font-family: "Apple Color Emoji", "Segoe UI Emoji",
                  "Noto Color Emoji", serif;
+    filter: grayscale(1);
+    mix-blend-mode: multiply;
   }}
   /* The sheet: forced into a portrait broadsheet even on a landscape
      desktop. Width is derived from the viewport HEIGHT, so the page is
@@ -683,6 +759,7 @@ PAGE_TEMPLATE = """<!doctype html>
     height: var(--sheet-h);
     overflow-y: auto;
     container-type: inline-size;
+    isolation: isolate;
     background: var(--paper);
     padding: 22px clamp(14px, 3.2vh, 32px) 46px;
     box-sizing: border-box;
@@ -698,6 +775,21 @@ PAGE_TEMPLATE = """<!doctype html>
     border-top: 3px double var(--rule);
     border-bottom: 3px double var(--rule);
     padding: 7px 2px; margin-bottom: 20px;
+  }}
+  /* Generated calendar page showing a year: line-art ink, transparent body,
+     identical on every platform. Text-sized and inline within the story;
+     a larger centred block in the masthead dateline. */
+  .cal {{
+    height: 1.15em; width: auto; display: inline-block;
+    vertical-align: -0.18em;
+  }}
+  #dateline .cal {{
+    height: 3em; display: block; margin: 2px auto; vertical-align: baseline;
+  }}
+  /* Non-year numbers (counts, the clock) set in the newspaper serif rather
+     than as keycap emoji. */
+  .num {{
+    font-family: Georgia, "Times New Roman", serif; font-weight: 700;
   }}
   #lead-emoji {{
     text-align: center; line-height: 1.14;
@@ -732,7 +824,7 @@ PAGE_TEMPLATE = """<!doctype html>
   <div id="lead-emoji" class="emoji">{emoji}</div>
   <hr id="hr">
   <div id="story" class="emoji">{story_emoji}</div>
-  <div id="footer" class="emoji" data-epoch="{epoch}">🔄 1️⃣0️⃣</div>
+  <div id="footer" class="emoji" data-epoch="{epoch}">🔄 <span class="num">10</span></div>
 </div>
 <script>
 (function () {{
@@ -746,13 +838,11 @@ PAGE_TEMPLATE = """<!doctype html>
   var epoch = parseInt(footer.getAttribute("data-epoch"), 10);
   if (epoch) {{
     var d = new Date(epoch * 1000);
-    var kc = function (n) {{
-      return String(n).padStart(2, "0").replace(/[0-9]/g, function (c) {{
-        return c + "️⃣";
-      }});
+    var num = function (n) {{
+      return '<span class="num">' + String(n).padStart(2, "0") + "</span>";
     }};
-    footer.textContent = "🗞️ 🕐 " + kc(d.getHours()) + " "
-      + kc(d.getMinutes()) + "   🔄 1️⃣0️⃣";
+    footer.innerHTML = "🗞️ 🕐 " + num(d.getHours()) + " "
+      + num(d.getMinutes()) + "   🔄 " + num(10);
   }}
 
   // Fit the whole front page onto the sheet with no scrolling: binary
@@ -792,32 +882,23 @@ PAGE_TEMPLATE = """<!doctype html>
 
 
 def render_html(emoji, story_emoji):
-    """Render the self-contained page. String formatting only - cannot fail."""
+    """Render the self-contained page: escape the emoji, turn years into
+    calendar icons and other numbers into keycaps, format the template.
+    Pure string work on already-validated input -- cannot fail.
+    """
     now = datetime.now(timezone.utc)
-    dateline = (
-        "🗓️ "
-        + _emoji_number(f"{now.day:02d}") + " · "
-        + _emoji_number(f"{now.month:02d}") + " · "
-        + _emoji_number(now.year)
-    )
     page = PAGE_TEMPLATE.format(
-        emoji=html.escape(emoji),
-        story_emoji=html.escape(story_emoji),
-        dateline=dateline,
+        emoji=_emoji_to_html(emoji),
+        story_emoji=_emoji_to_html(story_emoji),
+        dateline=_masthead_calendar(now),
         epoch=int(time.time()),
     )
-    # Normalise the emoji for the monochrome webfont. Two things make a
-    # browser abandon it and fall back to a colour emoji font (most
-    # visibly on Linux, via Noto Color Emoji):
-    #   - U+FE0F, the emoji-presentation selector: the mono font carries
-    #     no cmap format-14 table, so a browser reads an explicit FE0F as
-    #     "this font can't do emoji presentation here".
-    #   - U+1F3FB..U+1F3FF, the skin-tone modifiers: a skin-toned cluster
-    #     gets routed to a colour font, and skin tone is meaningless on a
-    #     black-on-newsprint page anyway.
-    # Dropping both is safe: it leaves the bare base emoji (which the font
-    # renders) and still lets keycap and ZWJ ligatures shape.
-    return re.sub(r"[\uFE0F\U0001F3FB-\U0001F3FF]", "", page)
+    # Colour-emoji rendering: KEEP U+FE0F (the emoji-presentation selector
+    # that colour glyphs and keycap sequences need) and the skin-tone
+    # modifiers. The page desaturates the emoji to grayscale and multiply-
+    # blends them onto the newsprint in CSS, so there's no mono outline font
+    # to coax and nothing to strip. Return the page as rendered.
+    return page
 
 
 # --------------------------------------------------------------------------
